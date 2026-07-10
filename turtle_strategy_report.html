@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>海龟/价格通道策略 参数扫描 · 心得总结</title>
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist@2.35.2/plotly.min.js"></script>
+<style>
+:root {
+  --bg: #0d1117; --panel: #161b22; --card: #21262d;
+  --text: #c9d1d9; --text2: #8b949e; --border: #30363d;
+  --red: #ef5350; --green: #26a69a; --purple: #7c4dff;
+  --gold: #d2991d; --blue: #58a6ff;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif; background:var(--bg); color:var(--text); line-height:1.7; }
+.header { background:linear-gradient(135deg,#161b22,#1a1a30); padding:32px; text-align:center; border-bottom:1px solid var(--border); }
+.header h1 { font-size:1.8em; color:#fff; }
+.header .sub { color:var(--text2); margin-top:6px; font-size:0.95em; }
+.container { max-width:1200px; margin:0 auto; padding:24px; }
+.section { margin-bottom:32px; }
+.section h2 { font-size:1.3em; color:var(--blue); border-bottom:1px solid var(--border); padding-bottom:8px; margin-bottom:16px; }
+.section h3 { font-size:1.1em; color:var(--text); margin:20px 0 10px; }
+
+/* Cards */
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+.card { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:20px; }
+.card h4 { color:var(--purple); margin-bottom:8px; }
+.card p { color:var(--text2); font-size:0.9em; }
+.insight { background:linear-gradient(135deg,#1a1a30,#161b22); border-left:3px solid var(--gold); padding:16px 20px; border-radius:8px; margin:12px 0; }
+.insight .label { color:var(--gold); font-weight:700; font-size:0.85em; margin-bottom:4px; }
+.insight p { color:var(--text); }
+.warn { border-left-color:var(--red); }
+.warn .label { color:var(--red); }
+
+table { width:100%; border-collapse:collapse; margin:12px 0; font-size:0.9em; }
+th { background:var(--card); color:var(--text2); padding:10px 12px; text-align:left; border-bottom:2px solid var(--border); }
+td { padding:9px 12px; border-bottom:1px solid var(--border); }
+tr:hover td { background:rgba(124,77,255,0.05); }
+.pos { color:var(--red); font-weight:600; }
+.neg { color:var(--green); }
+
+.chart-container { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:12px; margin:16px 0; }
+
+.footer { text-align:center; padding:24px; color:var(--text2); font-size:0.8em; border-top:1px solid var(--border); }
+.badge { display:inline-block; padding:3px 10px; border-radius:12px; font-size:0.8em; margin:2px; }
+.badge-green { background:rgba(38,166,154,0.2); color:var(--green); }
+.badge-red { background:rgba(239,83,80,0.2); color:var(--red); }
+.badge-purple { background:rgba(124,77,255,0.2); color:var(--purple); }
+
+.conclusion-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
+.conclusion-card { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:20px; }
+.conclusion-card h4 { color:var(--blue); margin-bottom:8px; font-size:1em; }
+.conclusion-card ul { list-style:none; padding:0; }
+.conclusion-card li { padding:4px 0; color:var(--text2); font-size:0.9em; }
+.conclusion-card li::before { content:'▸ '; color:var(--purple); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>海龟交易法则（价格通道策略）参数扫描与心得总结</h1>
+  <div class="sub">标的：华润江中 600750 · 策略：中轨交叉 · 数据期：2025.06 ~ 2026.07 · 241个交易日</div>
+</div>
+
+<div class="container">
+
+<!-- ====== 1. 参数扫描概览 ====== -->
+<div class="section">
+  <h2>一、参数扫描结果总览</h2>
+  <p style="color:var(--text2);margin-bottom:16px;">固定 ATR=14，改变通道周期 ch 从 5 到 60，观察策略表现的完整变化曲线。</p>
+
+  <table>
+    <thead>
+      <tr><th>通道周期</th><th>总收益率</th><th>夏普比率</th><th>最大回撤</th><th>买入次数</th><th>卖出次数</th><th>评价</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>ch=5</td><td class="pos">+16.65%</td><td class="pos">+0.87</td><td>16.41%</td><td>27</td><td>28</td><td><span class="badge badge-green">最佳收益</span></td></tr>
+      <tr><td>ch=10</td><td class="pos">+0.58%</td><td>+0.06</td><td>15.54%</td><td>22</td><td>23</td><td>勉强持平</td></tr>
+      <tr><td>ch=15</td><td class="neg">-2.66%</td><td class="neg">-0.13</td><td>16.11%</td><td>16</td><td>17</td><td><span class="badge badge-red">开始亏损</span></td></tr>
+      <tr><td>ch=20</td><td class="neg">-7.03%</td><td class="neg">-0.39</td><td>16.79%</td><td>15</td><td>16</td><td><span class="badge badge-red">显著亏损</span></td></tr>
+      <tr><td>ch=30</td><td class="neg">-9.03%</td><td class="neg">-0.55</td><td>20.71%</td><td>11</td><td>11</td><td><span class="badge badge-red">最差表现</span></td></tr>
+      <tr><td>ch=40</td><td class="pos">+2.71%</td><td>+0.19</td><td>13.82%</td><td>9</td><td>10</td><td>恢复盈利</td></tr>
+      <tr><td>ch=50</td><td class="pos">+5.97%</td><td class="pos">+0.39</td><td>11.76%</td><td>8</td><td>8</td><td><span class="badge badge-purple">最佳风控</span></td></tr>
+      <tr><td>ch=60</td><td class="pos">+4.47%</td><td>+0.32</td><td>11.76%</td><td>8</td><td>8</td><td>稳健偏正</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ====== 2. 可视化 ====== -->
+<div class="section">
+  <h2>二、收益率/夏普/回撤 vs 通道周期曲线</h2>
+  <div class="chart-container">
+    <div id="chart" style="height:420px;"></div>
+  </div>
+  <p style="color:var(--text2);font-size:0.85em;margin-top:8px;">
+    上图清晰显示 <b>U型曲线</b>：短周期(ch=5)和长周期(ch=40-60)两端盈利，中周期(ch=10-30)大幅亏损。
+    这是海龟法则最典型的参数特征——要么快进快出捕捉短线动量，要么长线持有吃大趋势，中间地带最容易被噪音反复打脸。
+  </p>
+</div>
+
+<!-- ====== 3. 深度分析 ====== -->
+<div class="section">
+  <h2>三、三区段深度解析</h2>
+
+  <div class="grid3">
+    <div class="card">
+      <h4>🔴 短线区 ch=5</h4>
+      <p><b>收益：+16.65% | 夏普：+0.87</b></p>
+      <p style="margin-top:8px;">
+        信号密集（27买/28卖），中轨频繁交叉，快进快出。得益于该股短期动量效应明显——涨时连续涨、跌时连续跌。
+        但交易频率高意味着手续费和滑点侵蚀严重（本回测未计成本）。
+      </p>
+      <p style="margin-top:8px;color:var(--text2);">
+        ⚠️ 风险：高换手率带来高交易成本，实盘中收益会大打折扣。
+      </p>
+    </div>
+
+    <div class="card">
+      <h4>🟡 中周期区 ch=10-30</h4>
+      <p><b>收益：-9.03% ~ +0.58% | 夏普：-0.55 ~ +0.06</b></p>
+      <p style="margin-top:8px;">
+        <b>死亡区间。</b>中周期恰好捕捉到趋势的中途反转——刚确认趋势就遇到回调，反复被"假突破"止损。
+        信号数量适中(11-22笔)，但每笔交易的盈亏比极差。这是中轨交叉策略的固有问题：无法区分趋势延续和趋势反转。
+      </p>
+      <p style="margin-top:8px;color:var(--text2);">
+        ⚠️ 核心教训：通道周期必须避开市场的"噪音周期"，否则中线反复打脸。
+      </p>
+    </div>
+
+    <div class="card">
+      <h4>🟢 长周期区 ch=40-60</h4>
+      <p><b>收益：+2.71~+5.97% | 夏普：+0.19~+0.39 | MDD：11.76%</b></p>
+      <p style="margin-top:8px;">
+        信号稀疏(8-10笔)，但每笔交易都捕获了较大的趋势段。长周期中轨平滑度高，过滤了大部分噪音。
+        最大回撤仅 11.76%，风险调整后收益最优。ch=50 实现了收益与风控的最佳平衡。
+      </p>
+      <p style="margin-top:8px;color:var(--text2);">
+        ✅ 这最接近原始海龟法则的思想：用长周期捕捉"大趋势"，放弃小波动。
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ====== 4. 海龟法则的适应场景 ====== -->
+<div class="section">
+  <h2>四、海龟法则的适应场景与条件</h2>
+
+  <div class="grid2">
+    <div>
+      <h3>✅ 适合使用的场景</h3>
+      <div class="insight">
+        <div class="label">① 趋势明显的市场</div>
+        <p>海龟法则本质是<b>趋势跟踪</b>。当市场有明显单边走势时（无论涨跌），价格通道会持续朝一个方向运行，中轨交叉能准确捕捉趋势切换点。600750在ch=5和ch=50上盈利，正是因为这两个周期分别捕捉到了短期动量和长期趋势。</p>
+      </div>
+      <div class="insight">
+        <div class="label">② 波动率适中的个股</div>
+        <p>ATR占价格 2-5% 的股票最适合。波动太小的股票通道太窄、假信号多；波动太大的股票通道太宽、信号太少。600750的ATR/价格约 2-3%，属于适中范围。</p>
+      </div>
+      <div class="insight">
+        <div class="label">③ 流动性好的大盘/中盘股</div>
+        <p>日均成交额 5000万以上，滑点小。小盘股容易被操纵、价格跳跃大，通道策略容易失效。</p>
+      </div>
+      <div class="insight">
+        <div class="label">④ 配合长周期多品种分散</div>
+        <p>原始海龟法则同时交易几十个品种。单一品种上可能连续亏损，但通过多品种分散，总有一两个品种走出大趋势覆盖所有亏损。这是海龟成功的核心秘诀。</p>
+      </div>
+    </div>
+
+    <div>
+      <h3>❌ 不适合使用的场景</h3>
+      <div class="insight warn">
+        <div class="label">① 横盘震荡市</div>
+        <p>价格在通道内窄幅波动时，中轨频繁交叉产生大量假信号。600750在ch=10-30的亏损，本质是因为该股在这段时期处于宽幅震荡而非明确趋势。</p>
+      </div>
+      <div class="insight warn">
+        <div class="label">② 高交易成本环境</div>
+        <p>短线参数(ch=5)需要频繁交易，印花税+佣金+滑点累积下来可达年化 5-10%。如果收益率才 16%，扣除成本后可能只剩 5-8%。</p>
+      </div>
+      <div class="insight warn">
+        <div class="label">③ 事件驱动型行情</div>
+        <p>突发利好/利空导致的跳空缺口会直接击穿通道，产生无法按信号价格成交的滑点。业绩公告、重大政策等事件前后应暂停策略。</p>
+      </div>
+      <div class="insight warn">
+        <div class="label">④ 单一品种重仓</div>
+        <p>从本回测看，即使是"较好"的参数(ch=50)，年化收益也只有约 6%，最大回撤近 12%。如果只拿这一只股票+这一套策略，性价比不高。海龟的威力在于多品种组合。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== 5. 使用心得 ====== -->
+<div class="section">
+  <h2>五、使用心得与实操建议</h2>
+
+  <div class="conclusion-grid">
+    <div class="conclusion-card">
+      <h4>📐 参数选择法则</h4>
+      <ul>
+        <li><b>短线交易：</b>ch=5-10，适合T+0/日内或1-2周持仓</li>
+        <li><b>中线波段：</b>ch=20-30（⚠️ 本回测中表现最差，需搭配过滤条件）</li>
+        <li><b>长线趋势：</b>ch=40-60，适合月度级别持仓</li>
+        <li><b>原始海龟：</b>系统1用20日突破，系统2用55日突破</li>
+        <li>建议同时运行短+长两套参数，互为补充</li>
+      </ul>
+    </div>
+
+    <div class="conclusion-card">
+      <h4>🔧 改进方向</h4>
+      <ul>
+        <li>加入 <b>ATR 过滤器</b>：只有突破幅度 > 1.5倍ATR 才确认信号</li>
+        <li>加入 <b>成交量确认</b>：突破日成交量 > 20日均量的1.2倍</li>
+        <li>加入 <b>ADX 趋势强度</b>：ADX > 25 才允许交易</li>
+        <li>加入 <b>止损机制</b>：以2倍ATR作为移动止损</li>
+        <li>加入 <b>仓位管理</b>：按ATR动态调整仓位大小</li>
+      </ul>
+    </div>
+
+    <div class="conclusion-card">
+      <h4>💡 量化交易心法</h4>
+      <ul>
+        <li><b>没有万能参数：</b>ch=5在600750上最好，换一只股票可能完全不同</li>
+        <li><b>过拟合陷阱：</b>不要在历史数据上调参调到极致，未来不会简单重复</li>
+        <li><b>盈亏比 > 胜率：</b>本策略胜率只有25-38%，但盈亏比够高就能盈利</li>
+        <li><b>成本是大敌：</b>短线策略扣除成本后可能转亏，务必计入真实费率</li>
+        <li><b>分散是免费午餐：</b>多品种+多周期+多策略组合是稳健盈利的唯一路径</li>
+      </ul>
+    </div>
+
+    <div class="conclusion-card">
+      <h4>🎯 下一步行动</h4>
+      <ul>
+        <li>将同一策略应用到 5-10 只不同行业股票</li>
+        <li>测试多品种组合的总体收益和回撤</li>
+        <li>加入 ATR 过滤器优化中周期(ch=20)表现</li>
+        <li>对比原始海龟的双突破系统（系统1+系统2）</li>
+        <li>引入仓位管理：每次交易不超过总资金的2%风险</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ====== 6. 总结 ====== -->
+<div class="section">
+  <h2>六、一句话总结</h2>
+  <div class="insight" style="border-left-color:var(--purple);">
+    <div class="label" style="color:var(--purple);">核心结论</div>
+    <p style="font-size:1.05em;">
+      海龟/价格通道策略的收益率对参数高度敏感，呈现<b>"U型曲线"</b>——两端盈利、中间亏损。
+      对华润江中600750而言，<b>短线 ch≈5（收益优先）</b>或<b>长线 ch≈50（风控优先）</b>是两个可行方向；
+      <b>中周期 ch=10-30 是死亡区间</b>。
+      该策略<b>最致命的弱点不是参数选择，而是单一品种无法分散风险</b>——原始海龟之所以成功，
+      靠的是同时交易几十个不相关品种。量化交易的本质不是找到完美参数，而是用概率优势 + 严格风控 + 多品种分散，在长期中稳定盈利。
+    </p>
+  </div>
+</div>
+
+</div>
+
+<div class="footer">
+  数据来源：Tushare · 回测工具：Python + Plotly · 回测不含手续费/滑点/印花税 · 仅供学习研究，不构成投资建议
+</div>
+
+<script>
+// ===== 参数扫描数据 =====
+const data = [
+  {ch:5, ret:16.65, sharpe:0.87, mdd:16.41, trades:27},
+  {ch:10, ret:0.58, sharpe:0.06, mdd:15.54, trades:22},
+  {ch:15, ret:-2.66, sharpe:-0.13, mdd:16.11, trades:16},
+  {ch:20, ret:-7.03, sharpe:-0.39, mdd:16.79, trades:15},
+  {ch:30, ret:-9.03, sharpe:-0.55, mdd:20.71, trades:11},
+  {ch:40, ret:2.71, sharpe:0.19, mdd:13.82, trades:9},
+  {ch:50, ret:5.97, sharpe:0.39, mdd:11.76, trades:8},
+  {ch:60, ret:4.47, sharpe:0.32, mdd:11.76, trades:8}
+];
+
+const chs = data.map(d => d.ch);
+
+const trace1 = {
+  x: chs, y: data.map(d => d.ret), type: 'scatter', mode: 'lines+markers',
+  name: '总收益率 %', yaxis: 'y',
+  line: {color: '#ef5350', width:3}, marker: {size:10, color: '#ef5350'},
+  text: data.map(d => `ch=${d.ch}<br>收益:${d.ret>0?'+':''}${d.ret.toFixed(2)}%`)
+};
+
+const trace2 = {
+  x: chs, y: data.map(d => d.sharpe), type: 'scatter', mode: 'lines+markers',
+  name: '夏普比率', yaxis: 'y2',
+  line: {color: '#58a6ff', width:2.5, dash:'dash'}, marker: {size:10, color: '#58a6ff', symbol:'diamond'},
+  text: data.map(d => `ch=${d.ch}<br>夏普:${d.sharpe>0?'+':''}${d.sharpe.toFixed(2)}`)
+};
+
+const trace3 = {
+  x: chs, y: data.map(d => d.mdd), type: 'scatter', mode: 'lines+markers',
+  name: '最大回撤 %', yaxis: 'y3',
+  line: {color: '#26a69a', width:2}, marker: {size:10, color: '#26a69a', symbol:'triangle-down'},
+  text: data.map(d => `ch=${d.ch}<br>MDD:${d.mdd.toFixed(2)}%`)
+};
+
+const layout = {
+  title: {text:'<b>收益率 · 夏普比率 · 最大回撤 vs 通道周期</b>', font:{size:15, color:'#c9d1d9'}},
+  xaxis: {title:'通道周期 (日)', dtick:5, gridcolor:'#30363d', color:'#8b949e'},
+  yaxis: {title:'收益率 %', gridcolor:'#30363d', color:'#ef5350', zerolinecolor:'#30363d'},
+  yaxis2: {title:'夏普比率', overlaying:'y', side:'right', gridcolor:'#30363d', color:'#58a6ff'},
+  yaxis3: {title:'最大回撤 %', overlaying:'y', side:'right', position:0.92, gridcolor:'#30363d', color:'#26a69a'},
+  hovermode: 'x unified',
+  legend: {orientation:'h', yanchor:'bottom', y:1.05, xanchor:'center', x:0.5, font:{color:'#8b949e'}},
+  template: 'plotly_dark',
+  paper_bgcolor: '#161b22', plot_bgcolor: '#161b22',
+  margin: {l:60, r:100, t:50, b:50},
+  shapes: [
+    {type:'rect', x0:10, x1:35, y0:-15, y1:25, yref:'y',
+     fillcolor:'rgba(239,83,80,0.05)', line:{width:0}, layer:'below'},
+    {type:'rect', x0:40, x1:65, y0:-15, y1:25, yref:'y',
+     fillcolor:'rgba(38,166,154,0.05)', line:{width:0}, layer:'below'},
+  ],
+  annotations: [
+    {x:5, y:19, xref:'x', yref:'y', text:'<b>短线区</b><br>高收益·高风险', showarrow:false,
+     font:{size:11, color:'#ef5350'}, bgcolor:'rgba(239,83,80,0.1)', borderpad:4},
+    {x:22.5, y:-11, xref:'x', yref:'y', text:'<b>⚠ 死亡区间</b><br>噪音·亏损', showarrow:false,
+     font:{size:11, color:'#f85149'}, bgcolor:'rgba(248,81,73,0.1)', borderpad:4},
+    {x:52.5, y:8, xref:'x', yref:'y', text:'<b>长线区</b><br>低回撤·稳收益', showarrow:false,
+     font:{size:11, color:'#26a69a'}, bgcolor:'rgba(38,166,154,0.1)', borderpad:4},
+  ]
+};
+
+Plotly.newPlot('chart', [trace1, trace2, trace3], layout, {responsive:true, displayModeBar:false});
+</script>
+
+</body>
+</html>
